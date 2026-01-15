@@ -36,6 +36,10 @@ func NewDeviceServiceServer() *DeviceServiceServer {
 	return &DeviceServiceServer{pool: pool}
 }
 
+func NewDeviceServiceServerWithPool(pool *device.DevicePool) *DeviceServiceServer {
+	return &DeviceServiceServer{pool: pool}
+}
+
 func updateAvailableMetric(pool *device.DevicePool) {
 	count := 0
 	for _, d := range pool.All() {
