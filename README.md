@@ -10,9 +10,19 @@ go run ./cmd/server
 
 # Build
 go build ./...
+```
 
-# Race detection
-go build -race ./...
+## CLI Client
+
+```bash
+# Reserve a device
+go run ./cmd/client reserve --user USER --type iphone
+
+# Release a device
+go run ./cmd/client release --device-id iphone-2
+
+# Watch live status (Ctrl+C to stop)
+go run ./cmd/client watch
 ```
 
 ## Endpoints
@@ -25,11 +35,13 @@ go build -race ./...
 ## Metrics
 
 ```bash
-# View metrics
+# Bash/Linux/macOS
 curl localhost:8080/metrics | grep devicefleet
+```
 
-# Live watch
-watch -n 1 'curl -s localhost:8080/metrics | grep devicefleet'
+```powershell
+# PowerShell/Windows
+(curl localhost:8080/metrics).Content | Select-String devicefleet
 ```
 
 ## Proto Generation
@@ -37,9 +49,3 @@ watch -n 1 'curl -s localhost:8080/metrics | grep devicefleet'
 ```bash
 buf generate
 ```
-
-## RPCs
-
-- `ReserveDevice(user, device_type)` → reserves an available device
-- `ReleaseDevice(device_id)` → releases a reserved device
-- `WatchDevices()` → streams device status every 1s
