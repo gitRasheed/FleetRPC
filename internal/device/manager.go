@@ -22,12 +22,12 @@ func NewDevicePool(deviceType string, count int) *DevicePool {
 	return pool
 }
 
-func (p *DevicePool) Reserve(user string, ttl time.Duration) (*Device, bool) {
+func (p *DevicePool) Reserve(user, requestedType string, ttl time.Duration) (*Device, bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	for _, d := range p.devices {
-		if IsAvailable(d) {
+		if d.Type == requestedType && IsAvailable(d) {
 			now := time.Now()
 			d.ReservedBy = user
 			d.ReservedAt = now

@@ -24,6 +24,7 @@ const (
 type ReserveRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	User          string                 `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
+	DeviceType    string                 `protobuf:"bytes,2,opt,name=device_type,json=deviceType,proto3" json:"device_type,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -61,6 +62,13 @@ func (*ReserveRequest) Descriptor() ([]byte, []int) {
 func (x *ReserveRequest) GetUser() string {
 	if x != nil {
 		return x.User
+	}
+	return ""
+}
+
+func (x *ReserveRequest) GetDeviceType() string {
+	if x != nil {
+		return x.DeviceType
 	}
 	return ""
 }
@@ -305,9 +313,11 @@ var File_proto_device_proto protoreflect.FileDescriptor
 
 const file_proto_device_proto_rawDesc = "" +
 	"\n" +
-	"\x12proto/device.proto\x12\x0edevicefleet.v1\"$\n" +
+	"\x12proto/device.proto\x12\x0edevicefleet.v1\"E\n" +
 	"\x0eReserveRequest\x12\x12\n" +
-	"\x04user\x18\x01 \x01(\tR\x04user\"F\n" +
+	"\x04user\x18\x01 \x01(\tR\x04user\x12\x1f\n" +
+	"\vdevice_type\x18\x02 \x01(\tR\n" +
+	"deviceType\"F\n" +
 	"\x0fReserveResponse\x12\x1b\n" +
 	"\tdevice_id\x18\x01 \x01(\tR\bdeviceId\x12\x16\n" +
 	"\x06status\x18\x02 \x01(\tR\x06status\"-\n" +

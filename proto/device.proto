@@ -5,6 +5,7 @@ option go_package = "github.com/gitRasheed/FleetRPC/internal/service/proto;proto
 
 message ReserveRequest {
   string user = 1;
+  string device_type = 2;
 }
 message ReserveResponse {
   string device_id = 1;

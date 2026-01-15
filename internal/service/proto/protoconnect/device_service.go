@@ -47,10 +47,15 @@ func updateAvailableMetric(pool *device.DevicePool) {
 }
 
 func (s *DeviceServiceServer) ReserveDevice(ctx context.Context, req *connect.Request[proto.ReserveRequest]) (*connect.Response[proto.ReserveResponse], error) {
-	dev, ok := s.pool.Reserve(req.Msg.User, 2*time.Minute)
+	deviceType := req.Msg.DeviceType
+	if deviceType == "" {
+		deviceType = "iphone"
+	}
+
+	dev, ok := s.pool.Reserve(req.Msg.User, deviceType, 2*time.Minute)
 	if !ok {
 		totalReservations.WithLabelValues("failure").Inc()
-		slog.Info("ReserveDevice failed", "user", req.Msg.User, "reason", "no devices available")
+		slog.Info("ReserveDevice failed", "user", req.Msg.User, "type", deviceType, "reason", "no devices available")
 		return connect.NewResponse(&proto.ReserveResponse{
 			Status: "no devices available",
 		}), nil
@@ -58,7 +63,7 @@ func (s *DeviceServiceServer) ReserveDevice(ctx context.Context, req *connect.Re
 
 	totalReservations.WithLabelValues("success").Inc()
 	updateAvailableMetric(s.pool)
-	slog.Info("ReserveDevice success", "user", req.Msg.User, "device_id", dev.ID)
+	slog.Info("ReserveDevice success", "user", req.Msg.User, "type", deviceType, "device_id", dev.ID)
 	return connect.NewResponse(&proto.ReserveResponse{
 		DeviceId: dev.ID,
 		Status:   "reserved",
@@ -80,12 +85,12 @@ func (s *DeviceServiceServer) WatchDevices(ctx context.Context, req *connect.Req
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
-	slog.Info("WatchDevices started")
+	slog.Info("WatchDevices started", "client", req.Peer().Addr)
 
 	for {
 		select {
 		case <-ctx.Done():
-			slog.Info("WatchDevices ended", "reason", ctx.Err())
+			slog.Info("WatchDevices ended", "client", req.Peer().Addr, "reason", ctx.Err())
 			return nil
 		case <-ticker.C:
 			for _, dev := range s.pool.All() {
@@ -95,7 +100,7 @@ func (s *DeviceServiceServer) WatchDevices(ctx context.Context, req *connect.Req
 					Available:  device.IsAvailable(dev),
 				})
 				if err != nil {
-					slog.Error("WatchDevices stream error", "err", err)
+					slog.Error("WatchDevices stream error", "client", req.Peer().Addr, "err", err)
 					return err
 				}
 			}

@@ -20,7 +20,11 @@ func main() {
 	mux.Handle(path, handler)
 	mux.Handle("/metrics", promhttp.Handler())
 
-	slog.Info("Starting FleetRPC server", "grpc_path", path, "metrics", "/metrics", "port", ":8080")
+	slog.Info("FleetRPC server ready",
+		"port", ":8080",
+		"grpc_path", path,
+		"metrics", "http://localhost:8080/metrics",
+	)
 
 	if err := http.ListenAndServe(":8080", mux); err != nil {
 		slog.Error("Server failed", "err", err)
