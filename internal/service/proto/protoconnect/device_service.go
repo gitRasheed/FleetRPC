@@ -6,8 +6,23 @@ import (
 	"time"
 
 	connect "connectrpc.com/connect"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+
 	"github.com/gitRasheed/FleetRPC/internal/device"
 	proto "github.com/gitRasheed/FleetRPC/internal/service/proto"
+)
+
+var (
+	totalReservations = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "devicefleet_reservations_total",
+		Help: "Total number of reservation attempts",
+	}, []string{"status"})
+
+	currentlyAvailable = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "devicefleet_devices_available",
+		Help: "Current number of available devices",
+	})
 )
 
 type DeviceServiceServer struct {
@@ -17,18 +32,32 @@ type DeviceServiceServer struct {
 func NewDeviceServiceServer() *DeviceServiceServer {
 	pool := device.NewDevicePool("iphone", 10)
 	go pool.CleanupExpired()
+	updateAvailableMetric(pool)
 	return &DeviceServiceServer{pool: pool}
+}
+
+func updateAvailableMetric(pool *device.DevicePool) {
+	count := 0
+	for _, d := range pool.All() {
+		if device.IsAvailable(d) {
+			count++
+		}
+	}
+	currentlyAvailable.Set(float64(count))
 }
 
 func (s *DeviceServiceServer) ReserveDevice(ctx context.Context, req *connect.Request[proto.ReserveRequest]) (*connect.Response[proto.ReserveResponse], error) {
 	dev, ok := s.pool.Reserve(req.Msg.User, 2*time.Minute)
 	if !ok {
+		totalReservations.WithLabelValues("failure").Inc()
 		slog.Info("ReserveDevice failed", "user", req.Msg.User, "reason", "no devices available")
 		return connect.NewResponse(&proto.ReserveResponse{
 			Status: "no devices available",
 		}), nil
 	}
 
+	totalReservations.WithLabelValues("success").Inc()
+	updateAvailableMetric(s.pool)
 	slog.Info("ReserveDevice success", "user", req.Msg.User, "device_id", dev.ID)
 	return connect.NewResponse(&proto.ReserveResponse{
 		DeviceId: dev.ID,
@@ -42,11 +71,34 @@ func (s *DeviceServiceServer) ReleaseDevice(ctx context.Context, req *connect.Re
 	if !success {
 		status = "not found or already available"
 	}
+	updateAvailableMetric(s.pool)
 	slog.Info("ReleaseDevice", "device_id", req.Msg.DeviceId, "status", status)
 	return connect.NewResponse(&proto.ReleaseResponse{Status: status}), nil
 }
 
 func (s *DeviceServiceServer) WatchDevices(ctx context.Context, req *connect.Request[proto.WatchRequest], stream *connect.ServerStream[proto.DeviceStatus]) error {
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
 	slog.Info("WatchDevices started")
-	return nil
+
+	for {
+		select {
+		case <-ctx.Done():
+			slog.Info("WatchDevices ended", "reason", ctx.Err())
+			return nil
+		case <-ticker.C:
+			for _, dev := range s.pool.All() {
+				err := stream.Send(&proto.DeviceStatus{
+					DeviceId:   dev.ID,
+					ReservedBy: dev.ReservedBy,
+					Available:  device.IsAvailable(dev),
+				})
+				if err != nil {
+					slog.Error("WatchDevices stream error", "err", err)
+					return err
+				}
+			}
+		}
+	}
 }
