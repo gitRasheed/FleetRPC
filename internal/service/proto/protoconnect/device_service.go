@@ -3,35 +3,49 @@ package protoconnect
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	connect "connectrpc.com/connect"
+	"github.com/gitRasheed/FleetRPC/internal/device"
 	proto "github.com/gitRasheed/FleetRPC/internal/service/proto"
 )
 
-// DeviceServiceServer implements the DeviceServiceHandler interface.
-type DeviceServiceServer struct{}
-
-// NewDeviceServiceServer creates a new DeviceServiceServer.
-func NewDeviceServiceServer() *DeviceServiceServer {
-	return &DeviceServiceServer{}
+type DeviceServiceServer struct {
+	pool *device.DevicePool
 }
 
-// ReserveDevice handles device reservation requests.
+func NewDeviceServiceServer() *DeviceServiceServer {
+	pool := device.NewDevicePool("iphone", 10)
+	go pool.CleanupExpired()
+	return &DeviceServiceServer{pool: pool}
+}
+
 func (s *DeviceServiceServer) ReserveDevice(ctx context.Context, req *connect.Request[proto.ReserveRequest]) (*connect.Response[proto.ReserveResponse], error) {
-	slog.Info("ReserveDevice called", "user", req.Msg.User)
+	dev, ok := s.pool.Reserve(req.Msg.User, 2*time.Minute)
+	if !ok {
+		slog.Info("ReserveDevice failed", "user", req.Msg.User, "reason", "no devices available")
+		return connect.NewResponse(&proto.ReserveResponse{
+			Status: "no devices available",
+		}), nil
+	}
+
+	slog.Info("ReserveDevice success", "user", req.Msg.User, "device_id", dev.ID)
 	return connect.NewResponse(&proto.ReserveResponse{
-		DeviceId: "",
-		Status:   "stubbed",
+		DeviceId: dev.ID,
+		Status:   "reserved",
 	}), nil
 }
 
-// ReleaseDevice handles device release requests.
 func (s *DeviceServiceServer) ReleaseDevice(ctx context.Context, req *connect.Request[proto.ReleaseRequest]) (*connect.Response[proto.ReleaseResponse], error) {
-	slog.Info("ReleaseDevice called", "device_id", req.Msg.DeviceId)
-	return connect.NewResponse(&proto.ReleaseResponse{Status: "stubbed"}), nil
+	success := s.pool.Release(req.Msg.DeviceId)
+	status := "released"
+	if !success {
+		status = "not found or already available"
+	}
+	slog.Info("ReleaseDevice", "device_id", req.Msg.DeviceId, "status", status)
+	return connect.NewResponse(&proto.ReleaseResponse{Status: status}), nil
 }
 
-// WatchDevices streams device status updates to clients.
 func (s *DeviceServiceServer) WatchDevices(ctx context.Context, req *connect.Request[proto.WatchRequest], stream *connect.ServerStream[proto.DeviceStatus]) error {
 	slog.Info("WatchDevices started")
 	return nil
