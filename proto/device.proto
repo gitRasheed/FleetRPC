@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package devicefleet.v1;
+option go_package = "github.com/gitRasheed/FleetRPC/internal/service/proto;proto";
+
+message ReserveRequest {
+  string user = 1;
+}
+message ReserveResponse {
+  string device_id = 1;
+  string status = 2;
+}
+
+message ReleaseRequest {
+  string device_id = 1;
+}
+message ReleaseResponse {
+  string status = 1;
+}
+
+message WatchRequest {}
+
+message DeviceStatus {
+  string device_id = 1;
+  string reserved_by = 2;
+  bool available = 3;
+}
+
+service DeviceService {
+  rpc ReserveDevice(ReserveRequest) returns (ReserveResponse);
+  rpc ReleaseDevice(ReleaseRequest) returns (ReleaseResponse);
+  rpc WatchDevices(WatchRequest) returns (stream DeviceStatus);
+}
